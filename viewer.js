@@ -19,10 +19,29 @@ async function openReport() {
     const response = await fetch(new URL('./report.bin', import.meta.url), {cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     if (!response.ok) throw new Error('Unavailable');
     const report = await decryptReport(new Uint8Array(await response.arrayBuffer()), match[1]);
-    const html = report.html.replace('<head>', '<head><base href="about:srcdoc"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow,noarchive">');
+    const parsed = new DOMParser().parseFromString(report.html, 'text/html');
+    const content = parsed.querySelector('main');
+    if (!content) throw new Error('Missing report');
+    const shadow = document.getElementById('report').attachShadow({mode: 'open'});
+    for (const style of parsed.querySelectorAll('style')) {
+      style.textContent = style.textContent.replace(/\bbody\s*\{/g, ':host{');
+      shadow.append(document.importNode(style, true));
+    }
+    for (const element of content.querySelectorAll('script,iframe,object,embed,form,link')) element.remove();
+    for (const element of content.querySelectorAll('*')) {
+      for (const attribute of [...element.attributes]) {
+        if (attribute.name.startsWith('on')) element.removeAttribute(attribute.name);
+      }
+    }
+    shadow.append(document.importNode(content, true));
+    shadow.addEventListener('click', event => {
+      const anchor = event.target.closest('a[href^="#"]');
+      if (!anchor) return;
+      event.preventDefault();
+      shadow.getElementById(anchor.getAttribute('href').slice(1))?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
     const pdf = Uint8Array.from(atob(report.pdf), c => c.charCodeAt(0));
     const pdfUrl = URL.createObjectURL(new Blob([pdf], {type: 'application/pdf'}));
-    document.getElementById('report').srcdoc = html;
     document.getElementById('download').href = pdfUrl;
     document.getElementById('gate').hidden = true;
     document.getElementById('unlocked').hidden = false;
