@@ -19,16 +19,15 @@ async function openReport() {
     const response = await fetch(new URL('./report.bin', import.meta.url), {cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     if (!response.ok) throw new Error('Unavailable');
     const report = await decryptReport(new Uint8Array(await response.arrayBuffer()), match[1]);
-    const html = report.html.replace('<head>', '<head><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow,noarchive">');
-    const htmlUrl = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
+    const html = report.html.replace('<head>', '<head><base href="about:srcdoc"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow,noarchive">');
     const pdf = Uint8Array.from(atob(report.pdf), c => c.charCodeAt(0));
     const pdfUrl = URL.createObjectURL(new Blob([pdf], {type: 'application/pdf'}));
-    document.getElementById('report').src = htmlUrl;
+    document.getElementById('report').srcdoc = html;
     document.getElementById('download').href = pdfUrl;
     document.getElementById('gate').hidden = true;
     document.getElementById('unlocked').hidden = false;
     document.title = 'Strategic investor report';
-    addEventListener('pagehide', () => { URL.revokeObjectURL(htmlUrl); URL.revokeObjectURL(pdfUrl); }, {once: true});
+    addEventListener('pagehide', () => URL.revokeObjectURL(pdfUrl), {once: true});
   } catch {
     status.textContent = 'This link could not open the report. Check that you have the complete shared link, then reload.';
   }
